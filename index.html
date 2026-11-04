@@ -19,7 +19,7 @@
 </head>
 <body>
 
-    <div id="status">Подключение к общей базе данных...</div>
+<div id="status">Подключение к общей базе данных...</div>
 <div class="container">
         <div class="board" id="board-1">
             <h3>Склад Смолино</h3>
@@ -70,16 +70,13 @@
 			</div>
 		</div>
     </div>
-	
-    <!-- Подключаем Firebase SDK (Модульная версия v10+) -->
 	<script type="module">
-	    // Импорт через CDN cdnjs (работает без сбоев CORS на любых хостингах)
-	    import { initializeApp } from "https://cloudflare.com";
-	    import { getDatabase, ref, set, onValue } from "https://cloudflare.com";
+	    // Правильные и безопасные ссылки для импорта Firebase без ошибок CORS:
+	    import { initializeApp } from "https://esm.sh";
+	    import { getDatabase, ref, set, onValue } from "https://esm.sh";
 	
-
-        // КОНФИГУРАЦИЯ FIREBASE (Вставьте ваши данные сюда!)
-        const firebaseConfig = {
+	    // КОНФИГУРАЦИЯ FIREBASE (Вставьте ваши личные данные из консоли Firebase)
+	    const firebaseConfig = {
             apiKey: "AIzaSyCQkxoYqLlkoC-exVVfEst-uS86N9LoKos",
             databaseURL: "https://uralkayak-sklad-default-rtdb.europe-west1.firebasedatabase.app"
         };
