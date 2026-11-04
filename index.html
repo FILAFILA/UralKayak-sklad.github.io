@@ -72,9 +72,11 @@
     </div>
 	
     <!-- Подключаем Firebase SDK (Модульная версия v10+) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com";
+	<script type="module">
+	    // Импорт через CDN cdnjs (работает без сбоев CORS на любых хостингах)
+	    import { initializeApp } from "https://cloudflare.com";
+	    import { getDatabase, ref, set, onValue } from "https://cloudflare.com";
+	
 
         // КОНФИГУРАЦИЯ FIREBASE (Вставьте ваши данные сюда!)
         const firebaseConfig = {
