@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>УралКаяк: склад</title>
+    <title>Общий Drag and Drop для всех пользователей</title>
     <style>
         * { box-sizing: border-box; font-family: sans-serif; }
         body { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 40px; background-color: #f4f4f9; }
@@ -14,21 +14,13 @@
         .item img { width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px; pointer-events: none; }
         .board.hovered { background: #cbd5e1; border-color: #64748b; }
         .item.dragging { opacity: 0.4; }
-        .controls { display: flex; gap: 10px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; color: white; }
-        #resetBtn { background-color: #ef4444; }
-        /* Индикатор статуса для отладки */
-        #status { font-size: 14px; color: #64748b; font-weight: bold; }
+        #status { font-size: 14px; color: #22c55e; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <button class="btn" id="resetBtn">Сбросить память</button>
-        <div id="status">Статус: Готов</div>
-    </div>
-
-    <div class="container">
+    <div id="status">Подключение к общей базе данных...</div>
+<div class="container">
         <div class="board" id="board-1">
             <h3>Склад Смолино</h3>
             <div class="item" draggable="true" id="card-1">
@@ -78,108 +70,97 @@
 			</div>
 		</div>
     </div>
+	
+    <!-- Подключаем Firebase SDK (Модульная версия v10+) -->
+    <script type="module">
+        import { initializeApp } from "https://gstatic.com";
+        import { getDatabase, ref, set, onValue } from "https://gstatic.com";
 
-    <script>
-        // Код обернут в DOMContentLoaded, чтобы он гарантированно видел все HTML-элементы
-        document.addEventListener('DOMContentLoaded', () => {
-            const items = document.querySelectorAll('.item');
-            const boards = document.querySelectorAll('.board');
-            const resetBtn = document.getElementById('resetBtn');
-            const statusDiv = document.getElementById('status');
+        // КОНФИГУРАЦИЯ FIREBASE (Вставьте ваши данные сюда!)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQkxoYqLlkoC-exVVfEst-uS86N9LoKos",
+            databaseURL: "https://uralkayak-sklad-default-rtdb.europe-west1.firebasedatabase.app"
+        };
 
-            let draggedItem = null;
+        // Инициализация
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const dbRef = ref(db, 'boardState');
 
-            // --- Перетаскивание ---
-            items.forEach(item => {
-                item.addEventListener('dragstart', function() {
-                    draggedItem = this;
-                    setTimeout(() => this.classList.add('dragging'), 0);
-                });
+        const items = document.querySelectorAll('.item');
+        const boards = document.querySelectorAll('.board');
+        const statusDiv = document.getElementById('status');
 
-                item.addEventListener('dragend', function() {
-                    this.classList.remove('dragging');
-                    draggedItem = null;
-                });
+        let draggedItem = null;
+        let isUpdatingFromNetwork = false; // Флаг, чтобы избежать зацикливания при обновлении
+
+        // --- ЛОГИКА DRAG AND DROP ---
+        items.forEach(item => {
+            item.addEventListener('dragstart', function() {
+                draggedItem = this;
+                setTimeout(() => this.classList.add('dragging'), 0);
             });
 
-            boards.forEach(board => {
-                board.addEventListener('dragover', e => e.preventDefault());
-                
-                board.addEventListener('dragenter', function(e) {
-                    e.preventDefault();
-                    this.classList.add('hovered');
-                });
-
-                board.addEventListener('dragleave', function() {
-                    this.classList.remove('hovered');
-                });
-
-                board.addEventListener('drop', function() {
-                    this.classList.remove('hovered');
-                    if (draggedItem) {
-                        this.appendChild(draggedItem);
-                        saveState(); // Сохраняем при каждом переносе
-                    }
-                });
+            item.addEventListener('dragend', function() {
+                this.classList.remove('dragging');
+                draggedItem = null;
             });
+        });
 
-            // --- Сохранение в LocalStorage ---
-            function saveState() {
-                try {
-                    const state = {};
-                    boards.forEach(board => {
-                        const itemIds = Array.from(board.querySelectorAll('.item')).map(item => item.id);
-                        state[board.id] = itemIds;
-                    });
-                    
-                    localStorage.setItem('dragAndDropState', JSON.stringify(state));
-                    statusDiv.textContent = "Статус: Позиция сохранена в память!";
-                    statusDiv.style.color = "green";
-                } catch (error) {
-                    statusDiv.textContent = "Ошибка сохранения! Откройте через сервер (Live Server).";
-                    statusDiv.style.color = "red";
-                    console.error("LocalStorage заблокирован браузером:", error);
+        boards.forEach(board => {
+            board.addEventListener('dragover', e => e.preventDefault());
+            board.addEventListener('dragenter', function(e) { e.preventDefault(); this.classList.add('hovered'); });
+            board.addEventListener('dragleave', function() { this.classList.remove('hovered'); });
+            
+            board.addEventListener('drop', function() {
+                this.classList.remove('hovered');
+                if (draggedItem) {
+                    this.appendChild(draggedItem);
+                    saveStateToCloud(); // Отправляем изменения в облако
                 }
-            }
+            });
+        });
 
-            // --- Восстановление из LocalStorage ---
-            function restoreState() {
-                try {
-                    const savedData = localStorage.getItem('dragAndDropState');
-                    if (!savedData) return;
+        // --- ОТПРАВКА ДАННЫХ В ОБЛАКО ---
+        function saveStateToCloud() {
+            const state = {};
+            boards.forEach(board => {
+                const itemIds = Array.from(board.querySelectorAll('.item')).map(item => item.id);
+                state[board.id] = itemIds;
+            });
 
-                    const state = JSON.parse(savedData);
+            // Записываем структуру в общую базу данных
+            set(dbRef, state)
+                .then(() => { statusDiv.textContent = "Синхронизировано для всех!"; statusDiv.style.color = "#22c55e"; })
+                .catch((error) => console.error("Ошибка сети:", error));
+        }
 
-                    Object.keys(state).forEach(boardId => {
-                        const board = document.getElementById(boardId);
-                        const itemIds = state[boardId];
+        // --- СИНХРОНИЗАЦИЯ ИЗ ОБЛАКА В РЕАЛЬНОМ ВРЕМЕНИ ---
+        // Метод onValue автоматически срабатывает у ВСЕХ пользователей, как только данные в базе меняются
+        onValue(dbRef, (snapshot) => {
+            const state = snapshot.val();
+            if (!state) return;
 
-                        if (board) {
-                            itemIds.forEach(itemId => {
-                                const item = document.getElementById(itemId);
-                                if (item) board.appendChild(item);
-                            });
+            statusDiv.textContent = "Обновление позиций...";
+            statusDiv.style.color = "#3b82f6";
+
+            Object.keys(state).forEach(boardId => {
+                const board = document.getElementById(boardId);
+                const itemIds = state[boardId];
+
+                if (board) {
+                    itemIds.forEach(itemId => {
+                        const item = document.getElementById(itemId);
+                        if (item && item !== draggedItem) { 
+                            // Перемещаем карточку, только если текущий пользователь её не тащит прямо сейчас
+                            board.appendChild(item);
                         }
                     });
-                    statusDiv.textContent = "Статус: Позиции успешно восстановлены!";
-                    statusDiv.style.color = "blue";
-                } catch (error) {
-                    statusDiv.textContent = "Не удалось загрузить память.";
-                    statusDiv.style.color = "red";
-                }
-            }
-
-            resetBtn.addEventListener('click', () => {
-                try {
-                    localStorage.removeItem('dragAndDropState');
-                    window.location.reload();
-                } catch (e) {
-                    alert("Не удалось очистить память из-за ограничений браузера.");
                 }
             });
 
-            // Восстанавливаем позиции при загрузке
-            restoreState();
+            statusDiv.textContent = "Синхронизировано для всех!";
+            statusDiv.style.color = "#22c55e";
         });
     </script>
 </body>
